@@ -1,148 +1,368 @@
 print('')
 print('+------------------------------------------------------------------+')
-print('|  StackWalk Ver 1 (August 2020). Python implementation.           |')
+print('|  StackWalk Ver 2 (September 2020). Python implementation.        |')
 print('|  Lattice Stacker and Maximal Chain Computer                      |')
 print('+------------------------------------------------------------------+')
 print('')
-# point p is encoded as a number whose base k+m+1 representation gives coordinates of the point 
 
-def generatePoints(k,n,m):
-    return 0
+# ABOUT THIS PROGRAM
+#
+# This program allows one to draw stacked lattices (iterated lax colimits of sequences of lattice 
+# homomorphisms) along rows and columns of the following commutative diagram of powers of chains, 
+# as well as to compute maximal chain numbers in those lattices. 
+#  ...      ...      ...
+#   ^        ^        ^
+#   |        |        |
+# C^1_0 -> C^1_1 -> C^1_2 -> ... 
+#   ^        ^        ^
+#   |        |        |
+# C^0_0 -> C^0_1 -> C^0_2 -> ...   
+# The program implements two classes, hypercubeStack (for working with columns) and 
+# hyperlatticeStack (for working with rows). See comments at the end of this file for instructions
+# on how to use the program.
+#
+# Main variables: in the program, 
+#   k represents iteration of stacking, 
+#   n represents the power of the chain, i.e. the superscript in C^n_m,
+#   m represents the length of the chain, i.e. the subscript in C^n_m
+# 
 
-def isValidPoint(num,k, n, m):
-    point=decodePoint(num, k, n, m)
-    for i in range(1,n):
-        if point[i]<k:
-            if point[i]<point[i-1]:
-                return False
-    return True
+class hypercubeStack:
+    def __init__(self):
+        pass
 
-def encodePoint(point, k, n, m):
-    num=0
-    for i in range(0,n):
-        num=num+((k+m+1)**(n-1-i))*point[i]
-    return num
-
-def decodePoint(num, k, n, m):
-    point=[]
-    while num:
-        point.insert(0,int(num % (k+m+1)))
-        num = int(num / (k+m+1))
-    while n-len(point):
-        point.insert(0,0)
-    return point
-
-def pointHeight(num, k, n, m):
-    point=decodePoint(num, k, n, m)
-    height=0
-    for i in range(0,n):
-        height=height+point[i]
-    return height
-
-def isNext(point1, point2, n):
-    distance=0
-    for i in range(0,n):
-        if point2[i]<point1[i]:
-            return False
-        distance=distance+(point2[i]-point1[i])
-    if distance==1:
+# Note: a point gets encoded as a number whose base k+m+1 representation gives coordinates of the point 
+# The next function decides whether a point belongs to the lattice or not
+    def isValidPoint(self,num,k, n, m):
+        point=self.decodePoint(num, k, n, m)
+        for i in range(1,n):
+            if point[i]<k:
+                if point[i]<point[i-1]:
+                    return False
         return True
-    return False
 
-def assignWeights(k,n,m):
-    weight=[0 for i in range(0,(k+m+1)**n)]
-    weight[0]=1
-    for h in range(0,(k+m)*n):
+    def encodePoint(self,point, k, n, m):
+        num=0
+        for i in range(0,n):
+            num=num+((k+m+1)**(n-1-i))*point[i]
+        return num
+
+    def decodePoint(self,num, k, n, m):
+        point=[]
+        while num:
+            point.insert(0,int(num % (k+m+1)))
+            num = int(num / (k+m+1))
+        while n-len(point):
+            point.insert(0,0)
+        return point
+
+# The height of the point is the sum of its coordinates
+    def pointHeight(self,num, k, n, m):
+        point=self.decodePoint(num, k, n, m)
+        height=0
+        for i in range(0,n):
+            height=height+point[i]
+        return height
+
+# The next function decides whether two points are immediately one another in the lattice
+    def isNext(self,point1, point2, n):
+        distance=0
+        for i in range(0,n):
+            if point2[i]<point1[i]:
+                return False
+            distance=distance+(point2[i]-point1[i])
+        if distance==1:
+            return True
+        return False
+
+# This function recursively assisgns to each point the sum of assigned values of the predecessors.
+# The assigned value is the number of maximal chainsending with the given point 
+    def assignWeights(self,k,n,m):
+        weight=[0 for i in range(0,(k+m+1)**n)]
+        weight[0]=1
+        for h in range(0,(k+m)*n):
+            for i in range(0,(k+m+1)**n):
+                if self.pointHeight(i,k,n,m)==h and self.isValidPoint(i, k, n, m):
+                    point1=self.decodePoint(i,k,n,m)
+                    for j in range(0,(k+m+1)**n):
+                        if self.pointHeight(j,k,n,m)==h+1 and self.isValidPoint(j, k, n, m):
+                            point2=self.decodePoint(j,k,n,m)
+                            if self.isNext(point1,point2,n):
+                                weight[j]=weight[j]+weight[i]
+        return weight
+
+# This produces the graphviz code for drawing the lattice where each vertex is labeled with the
+# number of maximal chains ending with that vertex (values generated by the previous function).
+    def printLattice(self,k,n,m):
+        print('digraph G{')
+        print('graph[splines="line",rankdir="LR",dpi = 300];')
+        print('node[imagescale=false,fixedsize="false",width="0",height="0",color="gray"];')
+        print('edge[arrowhead=vee, arrowsize=0.5];')
+        weight=self.assignWeights(k,n,m)
         for i in range(0,(k+m+1)**n):
-            if pointHeight(i,k,n,m)==h and isValidPoint(i, k, n, m):
-                point1=decodePoint(i,k,n,m)
+            if self.isValidPoint(i,k,n,m):
+                print(str(i)+'[label="'+str(weight[i])+'"];')
+        for i in range(0,(k+m+1)**n):
+            if self.isValidPoint(i, k, n, m):
+                point1=self.decodePoint(i,k,n,m)
                 for j in range(0,(k+m+1)**n):
-                    if pointHeight(j,k,n,m)==h+1 and isValidPoint(j, k, n, m):
-                        point2=decodePoint(j,k,n,m)
-                        if isNext(point1,point2,n):
-                            weight[j]=weight[j]+weight[i]
-    return weight
+                    if self.isValidPoint(j, k, n, m):
+                        point2=self.decodePoint(j,k,n,m)
+                        if self.isNext(point1,point2,n):
+                            print(str(i)+' -> '+str(j))
+        print('}')
 
-def printLattice(k,n,m):
-    print('digraph G{')
-    print('graph[splines="line",rankdir="LR",dpi = 300];')
-    print('node[imagescale=false,fixedsize="false",width="0",height="0",color="gray"];')
-    print('edge[arrowhead=vee, arrowsize=0.5];')
-    weight=assignWeights(k,n,m)
-    for i in range(0,(k+m+1)**n):
-        if isValidPoint(i,k,n,m):
-            print(str(i)+'[label="'+str(weight[i])+'"];')
-    for i in range(0,(k+m+1)**n):
-        if isValidPoint(i, k, n, m):
-            point1=decodePoint(i,k,n,m)
-            for j in range(0,(k+m+1)**n):
-                if isValidPoint(j, k, n, m):
-                    point2=decodePoint(j,k,n,m)
-                    if isNext(point1,point2,n):
-                        print(str(i)+' -> '+str(j))
-    print('}')
+# Draws the latex tikz display of the lattice, where xvec and yvec give the coordinates of  
+# the basis vectors for the planar projection of the n-dimensional coordinate axis
+    def printTikz(self,k,n,m,xvec,yvec):    
+        print('\\begin{tikzpicture}')
+        print('\\node at(0,-1){$\\Sigma^'+str(k)+'_'+str(n)+'C^'+str(n)+'_'+str(m)+'$};')
+        print('\\tikzset{every node/.style={shape=circle,draw=black,fill=white,inner sep=1pt,outer sep=0pt}}')
 
-def printTikz(k,n,m,xvec,yvec):    
-    print('\\begin{tikzpicture}')
-    print('\\node at(0,-1){$\\Sigma^'+str(k)+'_'+str(n)+'C^'+str(n)+'_'+str(m)+'$};')
-    print('\\tikzset{every node/.style={shape=circle,draw=black,fill=white,inner sep=1pt,outer sep=0pt}}')
+        coordinates=self.getCoordinates(k,n,m,xvec,yvec)
+        for i in range(0,(k+m+1)**n):
+            if self.isValidPoint(i,k,n,m):
+                if n>0:
+                    point=self.decodePoint(i,k,n,m)
+                    if point[0]>0:
+                        print('\\node [fill=black] ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')
+                    else:
+                        print('\\node ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')
+                else:
+                    print('\\node [fill=black]  ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')
+        
+        for i in range(0,(k+m+1)**n):
+            if self.isValidPoint(i, k, n, m):
+                point1=self.decodePoint(i,k,n,m)
+                for j in range(0,(k+m+1)**n):
+                    if self.isValidPoint(j, k, n, m):
+                        point2=self.decodePoint(j,k,n,m)
+                        if self.isNext(point1,point2,n):
+                            print('\\path ('+str(i)+') edge ('+str(j)+');')
 
-    coordinates=getCoordinates(k,n,m,xvec,yvec)
-    for i in range(0,(k+m+1)**n):
-        if isValidPoint(i,k,n,m):
-            print('\\node ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')
-    
-    for i in range(0,(k+m+1)**n):
-        if isValidPoint(i, k, n, m):
-            point1=decodePoint(i,k,n,m)
-            for j in range(0,(k+m+1)**n):
-                if isValidPoint(j, k, n, m):
-                    point2=decodePoint(j,k,n,m)
-                    if isNext(point1,point2,n):
-                        print('\\path ('+str(i)+') edge ('+str(j)+');')
-    
-    print('\\end{tikzpicture}')
+        print('\\end{tikzpicture}')
 
-def getCoordinates(k,n,m,xvec,yvec):
-    coordinates=[]
-    for i in range(0,(k+m+1)**n):
-        point=decodePoint(i, k, n, m)
-        xcoordinate=0
-        ycoordinate=0
-        for j in range(0,n):
-            xcoordinate=xcoordinate+point[j]*xvec[j]
-            ycoordinate=ycoordinate+point[j]*yvec[j]
-        coordinates.append([xcoordinate,ycoordinate])
-    return coordinates
+# Computes planar projection of the point (used in the previous function)
+    def getCoordinates(self,k,n,m,xvec,yvec):
+        coordinates=[]
+        for i in range(0,(k+m+1)**n):
+            point=self.decodePoint(i, k, n, m)
+            xcoordinate=0
+            ycoordinate=0
+            for j in range(0,n):
+                xcoordinate=xcoordinate+point[j]*xvec[j]
+                ycoordinate=ycoordinate+point[j]*yvec[j]
+            coordinates.append([xcoordinate,ycoordinate])
+        return coordinates
 
-    
-def test(what):
-    if what=='point encoder decoder':
-        for i in range(0,10):
-            print(decodePoint(i,2,4,1))
-            print(encodePoint(decodePoint(i,2,4,1),2,4,1))
-    if what=='valid point':
-        for i in range(0,100):
-            print(str(decodePoint(i,2,4,1))+' is valid: '+str(isValidPoint(i,2,4,1)))
-    if what=='point height':
-        for i in range(0,50):
-            print(str(decodePoint(i,2,4,1))+' has height: '+str(pointHeight(i,2,4,1)))
-    if what=='is next point':
-        print(isNext([0,1,0,3],[0,2,0,2],4))
-    if what=='assign weights':
-        for m in range(1,2):
-            print('When m='+str(m)+':')
-            for k in range(5,6):
-                output=('Iteration k='+str(k)+': ')
-                for n in range(0,5):
-                    output=output+str(assignWeights(k,n,m)[(k+m+1)**n-1])+', '
-                print(output)
-    if what=='get coordinates':
-        print(getCoordinates(1,3,2,[1,1,0],[0,1,1]))
+# Returns the sequence of maximal chain numbers, with a fixed k, m and ranged n
+    def maximalWalkNumbers(self,k,n,m):
+        numbers=[]
+        for i in range(0,n):
+            numbers.append(max(self.assignWeights(k,i,m)))
+        return numbers
 
+# The class below is based on the class above. Note that since now we are interested in rows,
+# the roles of n and m have been swapped around.
+class hyperlatticeStack:
+    def __init__(self):
+        pass
+    def isValidPoint(self, num, k, m, n):
+        point=self.decodePoint(num, k, m, n)
+        if k>0:
+            for i in range(0,n):
+                if point[n]<point[i]:
+                    return False
+        for i in range(n+1,n+k):
+            if point[i]<point[i-1]:
+                return False    
+        return True
+    def decodePoint(self, num, k, m, n):
+        point=[]
+        while num:
+            point.insert(0,int(num % (m+1)))
+            num = int(num / (m+1))
+        while k+n-len(point):
+            point.insert(0,0)
+        return point
+    def encodePoint(self,point, k, m, n):
+        num=0
+        for i in range(0,k+n):
+            num=num+((m+1)**(k+n-1-i))*point[i]
+        return num
+    def pointHeight(self,num, k, m, n):
+        point=self.decodePoint(num, k, m, n)
+        height=0
+        for i in range(0,k+n):
+            height=height+point[i]
+        return height
+    def isNext(self,point1, point2, kplusn):
+        distance=0
+        for i in range(0,kplusn):
+            if point2[i]<point1[i]:
+                return False
+            distance=distance+(point2[i]-point1[i])
+        if distance==1:
+            return True
+        return False
+    def assignWeights(self,k,m,n):
+        weight=[0 for i in range(0,(m+1)**(k+n))]
+        weight[0]=1
+        for h in range(0,m*(k+n)):
+            for i in range(0,(m+1)**(k+n)):
+                if self.pointHeight(i,k,m,n)==h and self.isValidPoint(i, k, m, n):
+                    point1=self.decodePoint(i,k,m,n)
+                    for j in range(0,(m+1)**(k+n)):
+                        if self.pointHeight(j,k,m,n)==h+1 and self.isValidPoint(j, k, m, n):
+                            point2=self.decodePoint(j,k,m,n)
+                            if self.isNext(point1,point2,k+n):
+                                weight[j]=weight[j]+weight[i]
+        return weight
+    def printLattice(self,k,m,n):
+        print('digraph G{')
+        print('graph[splines="line",rankdir="LR",dpi = 300];')
+        print('node[imagescale=false,fixedsize="false",width="0",height="0",color="gray"];')
+        print('edge[arrowhead=vee, arrowsize=0.5];')
+        weight=self.assignWeights(k,m,n)
+        for i in range(0,(m+1)**(k+n)):
+            if self.isValidPoint(i,k,m,n):
+                print(str(i)+'[label="'+str(weight[i])+'"];')
+        for i in range(0,(m+1)**(k+n)):
+            if self.isValidPoint(i, k, m, n):
+                point1=self.decodePoint(i,k,m,n)
+                for j in range(0,(m+1)**(k+n)):
+                    if self.isValidPoint(j, k, m, n):
+                        point2=self.decodePoint(j,k,m,n)
+                        if self.isNext(point1,point2,k+n):
+                            print(str(i)+' -> '+str(j))
+        print('}')
 
-printTikz(1,0,2,[0],[0])
-printTikz(1,1,2,[0.7],[0.5])
-printTikz(1,2,2,[-0.5,0.7],[1,0.5])
-printTikz(1,3,2,[1,-0.5,0.7],[0.2,1,0.5])
-printTikz(1,4,2,[-0.3,1,-0.5,0.7],[1.6,0.2,1,0.5])
+    def printTikz(self,scale,k,m,n,xvec,yvec):    
+        print('\\begin{tikzpicture}[scale='+scale+']')
+        print('\\node at(0,-1){$\\Sigma^'+str(k)+'_'+str(m)+'C^'+str(n)+'_'+str(m)+'$};')
+        print('\\tikzset{every node/.style={shape=circle,draw=black,fill=white,inner sep=1pt,outer sep=0pt}}')
+
+        coordinates=self.getCoordinates(k,m,n,xvec,yvec)
+        for i in range(0,(m+1)**(k+n)):
+            point=self.decodePoint(i,k,m,n)
+            if self.isValidPoint(i,k,m,n):
+                if point[k+n-1]==m and k>0 and m>0:
+                    print('\\node [fill=black] ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')
+                elif k==0:
+                    do = False
+                    for w in range(0,n):
+                        if point[w]==m:
+                            do=True
+                            break
+                    if do==True:
+                        print('\\node [fill=black] ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')                
+                    else:
+                        print('\\node ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')
+                elif m==0:
+                    print('\\node [fill=black] ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')                
+                else:
+                    print('\\node ('+str(i)+') at('+str(coordinates[i][0])+','+str(coordinates[i][1])+'){};')
+
+        
+        for i in range(0,(m+1)**(k+n)):
+            if self.isValidPoint(i, k, m, n):
+                point1=self.decodePoint(i,k,m,n)
+                for j in range(0,(m+1)**(k+n)):
+                    if self.isValidPoint(j, k, m, n):
+                        point2=self.decodePoint(j,k,m,n)
+                        if self.isNext(point1,point2,k+n):
+                            print('\\path ('+str(i)+') edge ('+str(j)+');')
+
+        print('\\end{tikzpicture}')
+
+    def getCoordinates(self,k,m,n,xvec,yvec):
+        coordinates=[]
+        for i in range(0,(m+1)**(k+n)):
+            point=self.decodePoint(i, k, m, n)
+            xcoordinate=0
+            ycoordinate=0
+            for j in range(0,k+n):
+                xcoordinate=xcoordinate+point[j]*xvec[j]
+                ycoordinate=ycoordinate+point[j]*yvec[j]
+            coordinates.append([xcoordinate,ycoordinate])
+        return coordinates
+    def maximalWalkNumbers(self,k,m,n):
+        numbers=[]
+        for i in range(0,m):
+            numbers.append(max(lc.assignWeights(k,i,n)))
+        return numbers
+
+    def printNumbers(self,k,m,n):
+        for row in range(0,n):
+            print('n='+str(row)+':')
+            for it in range(0,k):
+                print('k='+str(it)+':'+str(lc.maximalWalkNumbers(it,m,row)))
+
+    def primdecom(self,nums):
+        primes=[[] for _ in range(0,len(nums))]
+        for t in range(0,len(nums)):
+            i=2
+            while nums[t]>1:
+                isprime=True
+                for j in range(2,i):
+                    if j*int(i/j)==i:
+                        isprime=False
+                if isprime==True:
+                    if i*int(nums[t]/i)==nums[t]:
+                        primes[t].append(i)
+                        nums[t]=nums[t]/i
+                    else:
+                        i=i+1
+                else:
+                    i=i+1
+        return primes
+
+hc=hypercubeStack()
+lc=hyperlatticeStack()
+
+# Here is some sample code. Uncomment and run. See functions in the code to 
+# learn about what do the parameters represent.
+
+# The following prints tikz diagrams. The coordinate vectors are chosen in a way
+# that avoids clash of vertices and edges on the drawing
+
+#hc.printTikz(0,0,2,[0],[0])
+#hc.printTikz(0,1,2,[0.7],[0.5])
+#hc.printTikz(0,2,2,[-0.5,0.7],[1,0.5])
+#hc.printTikz(0,3,2,[1,-0.5,0.7],[0.2,1,0.5])
+#hc.printTikz(0,4,2,[-0.3,1,-0.5,0.7],[1.6,0.2,1,0.5])
+
+#lc.printTikz('1',2,0,2,[1,0.7,-0.5,-0.3],[0.2,0.5,1,1.6])
+#lc.printTikz('1',2,1,2,[1,0.7,-0.5,-0.3],[0.2,0.5,1,1.6])
+#lc.printTikz('1',2,2,2,[1,0.7,-0.5,-0.3],[0.2,0.5,1,1.6])
+#lc.printTikz('1',2,3,2,[1,0.7,-0.5,-0.3],[0.2,0.5,1,1.6])
+#lc.printTikz('1',2,4,2,[1,0.7,-0.5,-0.3],[0.2,0.5,1,1.6])
+
+#lc.printTikz('1',1,0,1,[-0.5,0.7,],[1,0.5,])
+#lc.printTikz('1',1,1,1,[-0.5,0.7,],[1,0.5,])
+#lc.printTikz('1',1,2,1,[-0.5,0.7,],[1,0.5,])
+#lc.printTikz('1',1,3,1,[-0.5,0.7,],[1,0.5,])
+#lc.printTikz('1',1,4,1,[-0.5,0.7,],[1,0.5,])
+
+#lc.printTikz('1',2,0,1,[-0.5,0.7,1],[1,0.5,0.2])
+#lc.printTikz('1',2,1,1,[-0.5,0.7,1],[1,0.5,0.2])
+#lc.printTikz('1',2,2,1,[-0.5,0.7,1],[1,0.5,0.2])
+#lc.printTikz('1',2,3,1,[-0.5,0.7,1],[1,0.5,0.2])
+#lc.printTikz('1',2,4,1,[-0.5,0.7,1],[1,0.5,0.2])
+
+#lc.printTikz('1',0,0,1,[-0.5],[1])
+#lc.printTikz('1',0,1,1,[-0.5],[1])
+#lc.printTikz('1',0,2,1,[-0.5],[1])
+#lc.printTikz('1',0,3,1,[-0.5],[1])
+#lc.printTikz('1',0,4,1,[-0.5],[1])
+
+#lc.printTikz('1',2,0,2,[0.7,-0.5,1,-0.3],[0.5,1,0.2,1.6])
+#lc.printTikz('1',2,1,2,[0.7,-0.5,1,-0.3],[0.5,1,0.2,1.6])
+#lc.printTikz('1',2,2,2,[0.7,-0.5,1,-0.3],[0.5,1,0.2,1.6])
+#lc.printTikz('1',2,3,2,[0.7,-0.5,1,-0.3],[0.5,1,0.2,1.6])
+#lc.printTikz('1',2,4,2,[0.7,-0.5,1,-0.3],[0.5,1,0.2,1.6])
+
+#print(hc.maximalWalkNumbers(2,5,1))
+#print(hc.maximalWalkNumbers(3,1,7))
+#print(lc.printNumbers(5,6,4))
+
